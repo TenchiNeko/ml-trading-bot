@@ -1,0 +1,65 @@
+# ===================================
+# ML Trading Bot - Git Ignore
+# ===================================
+
+# ===================================
+# CRITICAL: Trading Data & Results
+# ===================================
+*.csv
+*.xlsx
+*.xls
+*.parquet
+*.feather
+*.pickle
+*.pkl
+*.h5
+*.hdf5
+
+# ===================================
+# Credentials & API Keys
+# ===================================
+.env
+.env.*
+*.key
+*.pem
+*.p12
+credentials.json
+secrets.json
+config.ini
+settings.ini
+api_keys.txt
+passwords.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Logs & Temporary Files
+logs/
+*.log
+*.log.*
+temp/
+tmp/
+*.tmp
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
