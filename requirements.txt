@@ -1,0 +1,12 @@
+# ML Trading Bot Requirements
+# Python 3.8+
+
+# Core dependencies
+pandas>=1.3.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+
+# Optional but recommended
+# matplotlib>=3.4.0  # For visualization
+# jupyter>=1.0.0     # For notebooks
+# pytest>=6.0.0      # For testing
