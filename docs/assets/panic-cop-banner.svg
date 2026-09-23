@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="title desc">
+  <title id="title">Panic Cop ML Trading Research</title>
+  <desc id="desc">Offline machine-learning research for drawdown-gated position sizing.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#061318"/>
+      <stop offset="0.58" stop-color="#0a2022"/>
+      <stop offset="1" stop-color="#17251c"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="0.55" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#22c55e" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#22c55e" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#bbf7d0" stroke-opacity="0.055"/>
+    </pattern>
+    <filter id="soft-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="400" rx="26" fill="url(#background)"/>
+  <rect width="1280" height="400" rx="26" fill="url(#grid)"/>
+  <circle cx="225" cy="194" r="224" fill="url(#glow)"/>
+  <circle cx="1150" cy="58" r="210" fill="url(#glow)" opacity="0.34"/>
+
+  <g transform="translate(119 69)" filter="url(#soft-glow)">
+    <path d="M126 20L222 57V125C222 186 184 224 126 246C68 224 30 186 30 125V57Z" fill="#0c241f" stroke="url(#accent)" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M61 151L94 116L123 137L171 86L196 104" fill="none" stroke="url(#accent)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="61" cy="151" r="7" fill="#ccfbf1"/>
+    <circle cx="94" cy="116" r="7" fill="#a7f3d0"/>
+    <circle cx="123" cy="137" r="7" fill="#86efac"/>
+    <circle cx="171" cy="86" r="7" fill="#fbbf24"/>
+    <path d="M126 180V207M112 194H140" stroke="#f8fafc" stroke-width="8" stroke-linecap="round"/>
+  </g>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="420" y="124" fill="#86efac" font-size="18" font-weight="750" letter-spacing="5">ML TRADING RESEARCH</text>
+    <text x="416" y="213" fill="#f8fafc" font-size="82" font-weight="790" letter-spacing="5">PANIC COP</text>
+    <text x="421" y="258" fill="#b9d5cb" font-size="23" font-weight="450">Drawdown-gated position sizing, evaluated offline.</text>
+
+    <g transform="translate(421 298)" font-size="13" font-weight="700" letter-spacing="1.2">
+      <g>
+        <rect width="136" height="36" rx="18" fill="#0f766e" fill-opacity="0.24" stroke="#2dd4bf" stroke-opacity="0.64"/>
+        <text x="68" y="23" fill="#99f6e4" text-anchor="middle">RESEARCH ONLY</text>
+      </g>
+      <g transform="translate(152)">
+        <rect width="146" height="36" rx="18" fill="#15803d" fill-opacity="0.22" stroke="#4ade80" stroke-opacity="0.64"/>
+        <text x="73" y="23" fill="#bbf7d0" text-anchor="middle">RANDOM FOREST</text>
+      </g>
+      <g transform="translate(314)">
+        <rect width="142" height="36" rx="18" fill="#b45309" fill-opacity="0.18" stroke="#f59e0b" stroke-opacity="0.64"/>
+        <text x="71" y="23" fill="#fde68a" text-anchor="middle">MONTE CARLO</text>
+      </g>
+    </g>
+  </g>
+
+  <path d="M28 372C230 344 390 388 598 362C822 330 1018 382 1252 348" fill="none" stroke="url(#accent)" stroke-width="2" stroke-opacity="0.28"/>
+</svg>
