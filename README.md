@@ -1,294 +1,217 @@
-# ML Trading Bot - Panic Cop v2
+<p align="center">
+  <img src="docs/assets/panic-cop-banner.svg" alt="Panic Cop — offline machine-learning research for drawdown-gated position sizing" width="100%">
+</p>
 
-A machine learning-based position sizing system that dynamically reduces exposure during drawdown conditions using a RandomForest classifier.
+<p align="center">
+  <a href="https://github.com/TenchiNeko/ml-trading-bot/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/TenchiNeko/ml-trading-bot/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Python 3.10 or newer" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-22c55e.svg"></a>
+  <img alt="Offline research" src="https://img.shields.io/badge/mode-offline%20research-0f766e">
+  <img alt="No broker integration" src="https://img.shields.io/badge/broker%20access-none-f59e0b">
+</p>
 
-## ⚠️ Disclaimer
+<p align="center"><strong>An offline research pipeline for testing drawdown-gated position-size reductions with a Random Forest classifier.</strong></p>
 
-**This software is for educational and research purposes only. Trading involves substantial risk of loss. Past performance does not guarantee future results. Never risk more than you can afford to lose.**
+<p align="center">
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#input-schema">Input schema</a> ·
+  <a href="#method">Method</a> ·
+  <a href="#limitations">Limitations</a>
+</p>
 
-## Overview
+> [!CAUTION]
+> This repository is for software research and education—not financial advice or a production risk system. It does not place trades, connect to a broker, or guarantee that a strategy has an edge. Trading can result in substantial loss.
 
-This system implements a "panic cop" mechanism that:
+## What it does
 
-1. **Identifies Risk Conditions**: Detects when the trading system is in a vulnerable state (drawdown, loss streaks)
-2. **ML-Based Decision Making**: Uses RandomForest to predict when to reduce position size
-3. **Conservative Approach**: Only acts during clearly defined risk scenarios
-4. **Statistical Validation**: Validates edge through Monte Carlo simulation
+Panic Cop reads an existing trade-history CSV, engineers drawdown and loss-streak features, trains a classifier on rule-derived labels, and evaluates whether selectively reducing position size would have changed the recorded equity path.
 
-### Key Features
+| Capability | Boundary |
+| --- | --- |
+| Feature engineering | Drawdown, loss streak, rolling return, and rolling volatility features |
+| Eligibility gate | Evaluates only configured stress conditions and the selected market regime |
+| Classification | `RandomForestClassifier` trained on panic-eligible rows |
+| Position sizing | Applies a configurable multiplier when predicted probability crosses a threshold |
+| Monte Carlo diagnostic | Compares the selected panic locations with random eligible locations |
+| Execution | Offline CSV analysis only—no orders, exchange APIs, credentials, or network access |
 
-- **Gated Activation**: ML only activates during specific market regimes and risk thresholds
-- **Conservative Teacher Labels**: Training labels based on deep drawdowns and extended loss streaks
-- **Probability Threshold**: High confidence requirement (default 0.75) before size reduction
-- **Monte Carlo Validation**: Statistical proof that the ML is providing edge vs random
-- **Configurable Parameters**: All thresholds and settings externalized
-
-## Installation
-
-### Requirements
+## Quick start
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/TenchiNeko/ml-trading-bot.git
+cd ml-trading-bot
+
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+
+cp example_config.json config.json
+python ml_panic_cop.py path/to/trades.csv --config config.json --output results.csv
 ```
 
-**Python Version**: 3.8+
+The repository intentionally does not include real trading data. Use your own local dataset or a synthetic fixture that follows the schema below. See [QUICK_START.md](QUICK_START.md) for a shorter operating checklist.
 
-### Required Libraries
+## Input schema
 
-- pandas >= 1.3.0
-- numpy >= 1.21.0
-- scikit-learn >= 1.0.0
+The input CSV must contain these columns:
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `date` | Date/time | Any value accepted by `pandas.to_datetime` |
+| `ret_pct` | Number | Per-trade return in percentage points; `-1.5` means −1.5% |
+| `size_final` | Number | Baseline position-size multiplier |
+| `q_confidence` | Number | Upstream signal-confidence feature |
+| `volume_ratio_x` | Number | Upstream volume-ratio feature |
+| `regime_x` | String | Market-regime label; the default gate expects `bull_trending` |
+
+Rows missing any required value are dropped. The pipeline stops with a clear error if no usable rows remain.
 
 ## Usage
 
-### Basic Usage
-
-```bash
-python ml_panic_cop.py your_trading_data.csv
+```text
+usage: ml_panic_cop.py [-h] [--output OUTPUT] [--config CONFIG] input_file
 ```
 
-### With Custom Output File
-
 ```bash
-python ml_panic_cop.py your_trading_data.csv --output results.csv
+# Default configuration and output path (ml_panic_results.csv)
+python ml_panic_cop.py trades.csv
+
+# Explicit paths
+python ml_panic_cop.py trades.csv \
+  --config example_config.json \
+  --output results.csv
 ```
 
-### With Custom Configuration
-
-```bash
-python ml_panic_cop.py your_trading_data.csv --config config.json
-```
-
-### As a Module
+The pipeline can also be called as a module:
 
 ```python
 from ml_panic_cop import PanicCopML
 
-# Initialize with custom config
-config = {
-    "panic_mult": 0.50,
-    "prob_threshold": 0.75,
-    "dd_gate": -0.15,
-}
+bot = PanicCopML(
+    {
+        "panic_mult": 0.50,
+        "prob_threshold": 0.75,
+        "dd_gate": -0.15,
+    }
+)
 
-bot = PanicCopML(config)
-results = bot.run_full_pipeline("data.csv", "output.csv")
+result = bot.run_full_pipeline("trades.csv", "results.csv")
+print(result["performance"])
 ```
 
-## Data Requirements
+## Method
 
-Your input CSV must contain these columns:
+```mermaid
+flowchart TD
+    CSV["Trade-history CSV"] --> Validate["Schema validation"]
+    Validate --> Features["Drawdown + rolling features"]
+    Features --> Gate["Stress + regime gate"]
+    Gate --> Labels["Rule-derived teacher labels"]
+    Labels --> Model["Random Forest"]
+    Model --> Sizing["Probability threshold + size multiplier"]
+    Sizing --> Review["Equity comparison + Monte Carlo diagnostic"]
+```
 
-| Column | Description |
-|--------|-------------|
-| `date` | Trade date (parseable datetime) |
-| `ret_pct` | Return percentage per trade |
-| `size_final` | Position size (e.g., 4x leverage) |
-| `q_confidence` | Signal confidence metric |
-| `volume_ratio_x` | Volume-based feature |
-| `regime_x` | Market regime classification |
+### 1. Feature engineering
 
-**Important**: The system only activates during `regime_x == "bull_trending"`
+The pipeline derives:
+
+- `eq_4x` — compounded baseline equity path
+- `dd_4x` — drawdown from the running equity peak
+- `loss_streak` — consecutive negative sized returns
+- `roll_loss3` — three-trade rolling mean
+- `roll_std5` — five-trade rolling standard deviation
+
+### 2. Eligibility and labels
+
+With the defaults, a row becomes eligible when:
+
+```python
+(drawdown <= -0.15 or loss_streak >= 6) and regime_x == "bull_trending"
+```
+
+An eligible row receives the positive teacher label when the deeper drawdown and loss conditions are also met. These labels encode the configured rule—they are not independent ground truth.
+
+### 3. Model and sizing
+
+The classifier trains on the chronological training portion of eligible rows. A row receives reduced sizing when its predicted panic probability is at least `prob_threshold`; the baseline size is then multiplied by `panic_mult`.
+
+### 4. Monte Carlo diagnostic
+
+The diagnostic holds the number of panic decisions constant, randomly moves those decisions among eligible rows, and compares ending equity. The configured `random_state` makes these samples reproducible.
 
 ## Configuration
 
-### Default Parameters
+Copy [`example_config.json`](example_config.json) and override only the values you intend to test.
 
-```json
-{
-  "panic_mult": 0.50,         // Reduce size to 50% when panic triggers
-  "prob_threshold": 0.75,     // Require 75% ML confidence
-  "dd_gate": -0.15,           // -15% drawdown enables panic eligibility
-  "loss_gate": 6,             // 6 consecutive losses enables panic eligibility
-  "teacher_dd": -0.20,        // -20% DD for training labels
-  "teacher_loss": 3,          // 3 losses for training labels
-  "teacher_bigloss": -0.05,   // Single -5% loss for training labels
-  "train_split": 0.70,        // 70% train, 30% test
-  "n_runs_mc": 2000,          // Monte Carlo simulations
-  "rf_n_estimators": 300,     // Random Forest trees
-  "rf_max_depth": 4,          // Tree depth (prevents overfitting)
-  "random_state": 42          // Reproducibility seed
-}
-```
-
-### Creating a Config File
-
-Create `config.json`:
-
-```json
-{
-  "panic_mult": 0.60,
-  "prob_threshold": 0.80,
-  "dd_gate": -0.12
-}
-```
-
-## How It Works
-
-### 1. Feature Engineering
-
-The system creates these features from your trading data:
-
-- **dd_4x**: Current drawdown from equity peak
-- **loss_streak**: Consecutive losing trades count
-- **roll_loss3**: 3-trade moving average of sized returns
-- **roll_std5**: 5-trade rolling standard deviation
-- **q_confidence**: Your signal confidence metric
-- **volume_ratio_x**: Your volume feature
-
-### 2. Panic Eligibility Gate
-
-ML can only activate when:
-```python
-(drawdown <= -15% OR loss_streak >= 6) AND regime == "bull_trending"
-```
-
-### 3. Teacher Labels (Conservative)
-
-Training examples labeled as "panic=1" when:
-```python
-eligible AND drawdown <= -20% AND (loss_streak >= 3 OR single_loss <= -5%)
-```
-
-### 4. ML Prediction
-
-- RandomForest trained on eligible trades only
-- High probability threshold (75%) required
-- Position size reduced to 50% when panic triggers
-
-### 5. Monte Carlo Validation
-
-Shuffles panic decisions randomly among eligible trades 2000 times to prove the ML selections beat random chance.
-
-**Statistical Significance**:
-- p-value < 0.05: Strong evidence of edge
-- |z-score| > 1.96: Statistically significant at 95% confidence
+| Setting | Default | Purpose |
+| --- | ---: | --- |
+| `panic_mult` | `0.50` | Position-size multiplier when panic is active |
+| `prob_threshold` | `0.75` | Minimum predicted probability |
+| `dd_gate` | `-0.15` | Drawdown eligibility threshold |
+| `loss_gate` | `6` | Loss-streak eligibility threshold |
+| `teacher_dd` | `-0.20` | Drawdown threshold for positive labels |
+| `teacher_loss` | `3` | Loss-streak threshold for positive labels |
+| `teacher_bigloss` | `-0.05` | Sized-return threshold for positive labels |
+| `train_split` | `0.70` | Chronological eligible-row training fraction |
+| `n_runs_mc` | `2000` | Monte Carlo comparison runs |
+| `rf_n_estimators` | `300` | Number of Random Forest trees |
+| `rf_max_depth` | `4` | Maximum tree depth |
+| `random_state` | `42` | Random Forest and Monte Carlo seed |
 
 ## Output
 
-The system generates a CSV with these additional columns:
+The output CSV includes the original usable rows plus engineered and decision columns:
 
-- `eq_4x`: Equity curve without panic
-- `dd_4x`: Drawdown without panic
-- `loss_streak`: Consecutive losses
-- `roll_loss3`, `roll_std5`: Rolling features
-- `panic_eligible`: Boolean for eligibility
-- `teacher_panic`: Training labels
-- `panic_prob`: ML probability of panic
-- `panic_flag_ml`: Final panic decision
-- `size_ml_panic`: Adjusted position size
+- `eq_4x`, `dd_4x`, `loss_streak`, `roll_loss3`, and `roll_std5`
+- `panic_eligible` and `teacher_panic`
+- `panic_prob` and `panic_flag_ml`
+- `size_ml_panic`
 
-## Performance Metrics
+The terminal summary reports baseline and adjusted ending equity, maximum drawdown, and the Monte Carlo comparison statistics. Output CSV files are ignored by Git by default.
 
-The system outputs:
+## Limitations
 
-```
-=== Performance Comparison ===
-4x gas equity: 2.45, max DD: -32.5%
-ML panic equity: 2.78, max DD: -28.3%
+- The current report applies the trained classifier across the supplied dataset, including its training region. Treat the comparison as an in-sample research diagnostic, not an out-of-sample performance claim.
+- The Monte Carlo comparison tests random placement among eligible rows; it does not prove future profitability or causal edge.
+- Teacher labels come from configured rules and can reproduce those assumptions rather than discover a new signal.
+- Transaction costs, slippage, liquidity, taxes, latency, and broker constraints are not modeled.
+- Regime and upstream feature quality are the caller's responsibility.
+- A statistically interesting result still requires walk-forward testing, holdout evaluation, and paper trading before any real-world consideration.
 
-=== Monte Carlo Validation ===
-Real ML equity: 2.78
-Random mean: 2.52
-p-value: 0.0123
-z-score: 2.34
-```
+## Data safety
 
-## Interpretation Guide
+The program does not need credentials or internet access. Keep datasets and generated artifacts local:
 
-### Good Results
-- ML equity > 4x equity
-- ML max DD < 4x max DD
-- p-value < 0.05
-- |z-score| > 1.96
+- do not commit real trade histories, account identifiers, or performance exports
+- do not commit broker credentials, API keys, `.env` files, or private configuration
+- do not commit serialized models trained on private data
+- inspect staged files before every push
 
-### Warning Signs
-- p-value > 0.20 (likely no edge)
-- Very few panic triggers (< 1% of trades)
-- No improvement in drawdown
+The repository's `.gitignore` covers common data, model, database, credential, and result formats. Review [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) for the public-repository checklist.
 
-### Tuning Advice
+## Project layout
 
-**If panic triggers too often**:
-- Increase `prob_threshold` (0.75 → 0.85)
-- Tighten `dd_gate` (-0.15 → -0.18)
-- Increase `loss_gate` (6 → 8)
-
-**If panic never triggers**:
-- Decrease `prob_threshold` (0.75 → 0.65)
-- Loosen teacher thresholds
-- Check that you have "bull_trending" regime periods
-
-**If overfitting**:
-- Reduce `rf_max_depth` (4 → 3)
-- Increase `rf_n_estimators` (300 → 500)
-
-## Safety Considerations
-
-### What This Code Does NOT Do
-
-❌ Connect to any broker or exchange  
-❌ Execute live trades  
-❌ Store credentials or API keys  
-❌ Access the internet  
-❌ Modify your original data files  
-
-### What You Should Never Commit
-
-- Actual trading data (CSV files)
-- Broker credentials or API keys
-- Trading results or performance data
-- Trained models with real data
-
-**The `.gitignore` is configured to protect you**, but always double-check before pushing.
-
-## File Structure
-
-```
-ml-trading-bot/
-├── .gitignore              # Protects sensitive data
-├── README.md               # This file
-├── requirements.txt        # Python dependencies
-├── ml_panic_cop.py         # Main ML system
-├── config.json             # Configuration (optional)
-└── example_config.json     # Example configuration
-```
+| Path | Purpose |
+| --- | --- |
+| `ml_panic_cop.py` | CLI and research pipeline |
+| `example_config.json` | Safe configuration template |
+| `tests/` | Deterministic unit tests with synthetic data |
+| `QUICK_START.md` | Concise setup and run checklist |
+| `SECURITY_CHECKLIST.md` | Data and secret handling guidance |
+| `.github/workflows/ci.yml` | Python 3.10 and 3.12 verification |
 
 ## Development
 
-### Running Tests
-
 ```bash
-# Test with example data
-python ml_panic_cop.py example_data.csv --config example_config.json
+python -m compileall -q ml_panic_cop.py tests
+python -m unittest discover -s tests -v
+python ml_panic_cop.py --help
 ```
 
-### Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Never commit real trading data
-4. Submit a pull request
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and use only synthetic or redistributable test data.
 
 ## License
 
-[Your chosen license - MIT, GPL, etc.]
-
-## Support
-
-For issues or questions:
-- Open an issue on GitHub
-- Check existing issues for solutions
-
-## Acknowledgments
-
-Built with:
-- scikit-learn for ML
-- pandas for data manipulation
-- numpy for numerical operations
-
----
-
-**Remember**: This is a research tool. Always paper trade extensively before considering live use. Never risk capital you can't afford to lose.
+Panic Cop is available under the [MIT License](LICENSE).

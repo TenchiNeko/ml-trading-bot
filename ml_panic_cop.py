@@ -5,7 +5,7 @@ A machine learning-based position sizing system that reduces exposure during dra
 This system:
 1. Identifies panic-eligible trades based on drawdown and loss streaks
 2. Uses RandomForest classifier to predict when to reduce position size
-3. Validates performance through Monte Carlo simulation
+3. Compares selected panic locations with a Monte Carlo random-placement baseline
 """
 
 import pandas as pd
@@ -55,16 +55,27 @@ class PanicCopML:
     def load_data(self, filepath):
         """Load and prepare trading data."""
         print(f"Loading data from: {filepath}")
-        df = pd.read_csv(filepath, parse_dates=["date"])
-        df = df.sort_values("date").reset_index(drop=True)
-        
-        # Verify required columns exist
-        required_cols = ["ret_pct", "size_final"] + self.feature_cols[3:]
+        df = pd.read_csv(filepath)
+
+        # Validate the documented input schema before feature engineering.
+        required_cols = [
+            "date",
+            "ret_pct",
+            "size_final",
+            "q_confidence",
+            "volume_ratio_x",
+            "regime_x",
+        ]
         missing = set(required_cols) - set(df.columns)
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
-        
+
+        df["date"] = pd.to_datetime(df["date"], errors="raise")
         df = df.dropna(subset=required_cols).reset_index(drop=True)
+        if df.empty:
+            raise ValueError("No usable rows remain after dropping incomplete input data")
+
+        df = df.sort_values("date").reset_index(drop=True)
         self.df = df
         return df
     
@@ -78,9 +89,7 @@ class PanicCopML:
         ret_sized = rets * sizes_4x
         
         # Equity curve
-        eq = np.ones(len(df))
-        for i in range(1, len(df)):
-            eq[i] = eq[i-1] * (1.0 + ret_sized[i])
+        eq = self.equity_path(rets, sizes_4x)
         df["eq_4x"] = eq
         
         # Drawdown from running max
@@ -155,7 +164,10 @@ class PanicCopML:
         # Split on eligible trades only
         eligible_idx = np.where(df["panic_eligible"].values)[0]
         n_eligible = len(eligible_idx)
-        split_e = int(n_eligible * cfg["train_split"])
+        if n_eligible < 2:
+            raise ValueError("At least two panic-eligible rows are required for training")
+
+        split_e = max(1, min(n_eligible - 1, int(n_eligible * cfg["train_split"])))
         
         train_idx = eligible_idx[:split_e]
         test_idx = eligible_idx[split_e:]
@@ -164,6 +176,12 @@ class PanicCopML:
         y_train = y_all.iloc[train_idx]
         X_test = X_all.iloc[test_idx]
         y_test = y_all.iloc[test_idx]
+
+        if y_train.nunique() < 2:
+            raise ValueError(
+                "The training split needs both panic and non-panic examples; "
+                "provide more history or adjust the teacher thresholds"
+            )
         
         # Train classifier
         self.clf = RandomForestClassifier(
@@ -185,6 +203,8 @@ class PanicCopML:
         """Apply ML panic detection to determine position sizes."""
         df = self.df
         cfg = self.config
+        if self.clf is None:
+            raise RuntimeError("Train the model before applying panic sizing")
         
         # Get panic probabilities
         eligible_idx = np.where(df["panic_eligible"].values)[0]
@@ -211,14 +231,17 @@ class PanicCopML:
     @staticmethod
     def equity_path(returns, sizes):
         """Calculate equity curve from returns and sizes."""
-        eq = np.ones(len(returns))
-        for i in range(1, len(returns)):
-            eq[i] = eq[i-1] * (1.0 + returns[i] * sizes[i])
-        return eq
+        returns = np.asarray(returns, dtype=float)
+        sizes = np.asarray(sizes, dtype=float)
+        if returns.shape != sizes.shape:
+            raise ValueError("returns and sizes must have the same shape")
+        return np.cumprod(1.0 + returns * sizes)
     
     @staticmethod
     def max_drawdown(equity):
         """Calculate maximum drawdown."""
+        if len(equity) == 0:
+            raise ValueError("equity must contain at least one value")
         rm = np.maximum.accumulate(equity)
         dd = equity / rm - 1.0
         return dd.min()
@@ -238,7 +261,7 @@ class PanicCopML:
         dd_ml = self.max_drawdown(eq_ml)
         
         print("\n=== Performance Comparison ===")
-        print(f"4x gas equity: {eq_4x[-1]:.2f}, max DD: {dd_4x:.2%}")
+        print(f"Baseline equity: {eq_4x[-1]:.2f}, max DD: {dd_4x:.2%}")
         print(f"ML panic equity: {eq_ml[-1]:.2f}, max DD: {dd_ml:.2%}")
         
         return {
@@ -249,7 +272,7 @@ class PanicCopML:
         }
     
     def monte_carlo_validation(self):
-        """Validate ML edge through Monte Carlo simulation."""
+        """Compare ML selections with random placements on eligible rows."""
         df = self.df
         cfg = self.config
         
@@ -260,11 +283,12 @@ class PanicCopML:
         n_panic_real = int(df["panic_flag_ml"].sum())
         
         mc_equities = np.empty(cfg["n_runs_mc"])
+        rng = np.random.default_rng(cfg["random_state"])
         
         for i in range(cfg["n_runs_mc"]):
             sizes_rand = sizes_4x.copy()
             if n_panic_real > 0 and len(eligible_idx) >= n_panic_real:
-                chosen = np.random.choice(eligible_idx, size=n_panic_real, replace=False)
+                chosen = rng.choice(eligible_idx, size=n_panic_real, replace=False)
                 sizes_rand[chosen] *= cfg["panic_mult"]
             eq_rand = self.equity_path(rets, sizes_rand)
             mc_equities[i] = eq_rand[-1]
@@ -282,7 +306,10 @@ class PanicCopML:
               f"{np.percentile(mc_equities, 95):.2f}")
         print(f"p-value: {p_value:.4f}")
         print(f"z-score: {z_score:.2f}")
-        print("Note: p < 0.05 or |z| > 1.96 suggests statistical edge")
+        print(
+            "Note: these statistics compare eligible-row placement only; "
+            "they do not prove future or causal edge"
+        )
         
         return {
             "real_eq": real_eq,
